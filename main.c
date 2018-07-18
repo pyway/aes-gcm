@@ -1,11 +1,25 @@
-#include "gcm.h"
-#include "utils.h"
+#include "mbedtls/gcm.h"
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
+int memcmp(const void* s1, const void* s2,size_t n)
+{
+    const unsigned char *p1 = s1, *p2 = s2;
+    while(n--){
+        if( *p1 != *p2 )
+            return *p1 - *p2;
+        else
+            p1++,p2++;
+	}
+	
+    return 0;
+}
 
 static void single_encryption(void) {
     mbedtls_gcm_context ctx;
-    unsigned char buf[64];
-    unsigned char tag_buf[16];
+    unsigned char buf[64]={0};
+    unsigned char tag_buf[16]={0};
     int ret;
     mbedtls_cipher_id_t cipher = MBEDTLS_CIPHER_ID_AES;
     // 32 bytes.. that's 256 bits
@@ -31,20 +45,72 @@ static void single_encryption(void) {
       0x3d, 0x58, 0xe0, 0x91, 0x47, 0x3f, 0x59, 0x85};
     const unsigned char initial_value[12] = { 0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad,
       0xde, 0xca, 0xf8, 0x88 };
-    const unsigned char additional[] = {};
+    const unsigned char additional[12] = {0xca, 0xfe, 0xba, 0xbe, 0xfa, 0xce, 0xdb, 0xad,
+      0xde, 0xca, 0xf8, 0x88};
 
+ {                
+      int j=0;
+      printf("plaint:\n");
+		for (j = 0; j < 64; j++)
+        {
+			if(j % 16 == 0){
+				printf("\n"); 
+			}
+            printf("%02x ", plaintext[j] );
+            
+            
+        }
+        printf("\n");     
+	}       
+	
     mbedtls_gcm_init( &ctx );
     // 128 bits, not bytes!
     ret = mbedtls_gcm_setkey( &ctx, cipher, key, 128 );
 
-    ret = mbedtls_gcm_crypt_and_tag(&ctx, MBEDTLS_GCM_ENCRYPT, 64, initial_value, 12, additional, 0, plaintext, buf, 16, tag_buf);
-    mbedtls_gcm_free( &ctx );
+    ret = mbedtls_gcm_crypt_and_tag(&ctx, MBEDTLS_GCM_ENCRYPT, 64, initial_value, 12, additional, 12, plaintext, buf, 16, tag_buf);
+    
     if (memcmp(buf, expected_ciphertext, 64) == 0) {
-        printf("My local test also works\n");
+		int j=0;
+		printf("My local test also works\n");
+		
+		for (j = 0; j < 16; j++)
+        {
+            printf("%02x ", tag_buf[j] );
+            
+        }
+        printf("\n");
+        
+        
     } else {
         printf("local test failed\n");
     }
-
+    
+    memset(plaintext, 0, 64);
+    mbedtls_gcm_auth_decrypt( &ctx,
+                      64,
+                      initial_value,
+                      12,
+                      additional,
+                      12,
+                      tag_buf,
+                      16,
+                      buf,
+                      plaintext );
+      {                
+      int j=0;
+      printf("decrypt\n");
+		for (j = 0; j < 64; j++)
+        {
+			if(j % 16 == 0){
+				printf("\n"); 
+			}
+            printf("%02x ", plaintext[j] );
+            
+            
+        }
+        printf("\n");     
+	}           
+    mbedtls_gcm_free( &ctx );
 }
 
 int main(void) {
